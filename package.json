@@ -1,0 +1,14 @@
+{
+  "name": "ai-data-analyst",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "backend": ".venv\\Scripts\\python.exe -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000",
+    "build": "npm --prefix frontend run build",
+    "lint": "npm --prefix frontend run lint",
+    "typecheck": "npm --prefix frontend run typecheck",
+    "test:e2e": "npm --prefix frontend run test:e2e",
+    "test:backend": ".venv\\Scripts\\python.exe -m pytest backend -q -c backend/pyproject.toml"
+  }
+}

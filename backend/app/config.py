@@ -1,0 +1,17 @@
+import os
+from pathlib import Path
+
+MAX_FILE_BYTES = 10 * 1024 * 1024
+MAX_REQUEST_BYTES = MAX_FILE_BYTES + 64 * 1024
+MAX_ROWS = 100_000
+MAX_COLUMNS = 200
+MAX_CELLS = 2_000_000
+MAX_LOGICAL_BYTES = 32 * 1024 * 1024
+MAX_EXPANDED_BYTES = 100 * 1024 * 1024
+MAX_ARCHIVE_MEMBERS = 2_000
+PARSE_TIMEOUT = 30
+TTL_HOURS = 24
+DEFAULT_DATA_DIR = Path(
+    os.environ.get("DATA_DIR", Path(__file__).resolve().parents[2] / ".data")
+)
+LOCAL_ORIGINS = {"http://127.0.0.1:3000", "http://localhost:3000"}
