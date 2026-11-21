@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, Query, Request, Response, UploadFile
 
 from app.config import MAX_FILE_BYTES
 from app.schemas import AnalysisError, DatasetResponse, SheetSelection
+from app.services.file_validation import upload_kind
 from app.services.parsing import run_parse
 from app.services.statistics import build_preview, compute_statistics
 
@@ -27,10 +28,7 @@ def upload_dataset(request: Request, file: Annotated[UploadFile, File()]):
     dataset_id = None
     try:
         filename = (file.filename or "data").replace("\\", "/").split("/")[-1][:255]
-        if Path(filename).suffix.lower() not in {".csv", ".xlsx"}:
-            raise AnalysisError(
-                "unsupported_format", "รองรับเฉพาะไฟล์ .csv และ .xlsx", 415
-            )
+        upload_kind(filename)
         dataset_id, path = repo.create(filename)
         length = 0
         with path.open("wb") as stream:

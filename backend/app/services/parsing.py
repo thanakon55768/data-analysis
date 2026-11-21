@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pandas as pd
 from openpyxl import load_workbook
+from python_calamine import CalamineWorkbook
 
 from app.config import (
     MAX_CELLS,
@@ -74,17 +75,20 @@ def parse_dataset(
                 "ข้อมูลหลังขยายข้อความเกินขอบเขต 32 MB กรุณาลดจำนวนแถวหรือความยาวข้อความ",
             )
 
-    if kind == "csv":
+    if kind in {"csv", "tsv"}:
         # Do not use Pandas' default NA tokens or automatic date/header coercion.
         try:
             with path.open(encoding="utf-8-sig", newline="") as stream:
                 csv.field_size_limit(MAX_FILE_BYTES)
                 quoted_header = stream.read(1) == '"'
                 stream.seek(0)
-                reader = csv.reader(stream, strict=True)
+                reader = csv.reader(
+                    stream, delimiter="\t" if kind == "tsv" else ",", strict=True
+                )
                 headers = next(reader, [])
                 if (
-                    not quoted_header
+                    kind == "csv"
+                    and not quoted_header
                     and len(headers) == 1
                     and any(char in headers[0] for char in ";\t|")
                 ):
@@ -108,8 +112,61 @@ def parse_dataset(
                     _check_shape(len(rows), len(headers))
         except (UnicodeDecodeError, csv.Error):
             raise AnalysisError(
-                "invalid_csv", "อ่าน CSV ไม่ได้ กรุณาใช้ UTF-8 และตรวจสอบเครื่องหมายคำพูด/ตัวคั่น"
+                f"invalid_{kind}",
+                f"อ่าน {kind.upper()} ไม่ได้ กรุณาใช้ UTF-8 และตรวจสอบเครื่องหมายคำพูด/ตัวคั่น",
             ) from None
+    elif kind in {"json", "jsonl"}:
+        headers = []
+        positions = {}
+        with path.open(encoding="utf-8-sig") as stream:
+            try:
+                records = (
+                    (json.loads(line) for line in stream if line.strip())
+                    if kind == "jsonl"
+                    else json.load(stream)
+                )
+                if kind == "json" and not isinstance(records, list):
+                    raise AnalysisError("invalid_json", "JSON ต้องเป็นอาร์เรย์ของออบเจ็กต์")
+                for number, record in enumerate(records, 1):
+                    if not isinstance(record, dict):
+                        raise AnalysisError(
+                            "invalid_json", f"รายการที่ {number} ต้องเป็นออบเจ็กต์"
+                        )
+                    for key in record:
+                        if key not in positions:
+                            positions[key] = len(headers)
+                            headers.append(key)
+                    _check_shape(number, len(headers))
+                    row = [None] * len(headers)
+                    for key, value in record.items():
+                        if isinstance(value, (dict, list)):
+                            value = json.dumps(
+                                value, ensure_ascii=False, allow_nan=False
+                            )
+                        if isinstance(value, float) and not math.isfinite(value):
+                            raise ValueError("non-finite number")
+                        row[positions[key]] = value
+                    account(row)
+                    rows.append(row)
+                account(headers)
+            except (UnicodeError, ValueError, RecursionError) as exc:
+                raise AnalysisError(
+                    "invalid_json", "อ่าน JSON ไม่ได้ กรุณาตรวจรูปแบบและใช้ UTF-8"
+                ) from exc
+    elif kind in {"xls", "ods"}:
+        with CalamineWorkbook.from_path(str(path)) as book:
+            if sheet_name not in book.sheet_names:
+                raise AnalysisError("unknown_sheet", "ไม่พบชีตที่เลือก")
+            sheet = book.get_sheet_by_name(sheet_name)
+            end_row, end_col = sheet.end or (0, 0)
+            _check_shape(end_row, end_col + 1)
+            iterator = iter(sheet.to_python(skip_empty_area=False))
+            headers = [str(v) if v is not None else "" for v in next(iterator, [])]
+            account(headers)
+            for values in iterator:
+                row = [_scalar(v) for v in values]
+                account(row)
+                rows.append(row)
     else:
         book = load_workbook(path, read_only=True, data_only=True, keep_links=False)
         formulas = None
@@ -180,7 +237,7 @@ def parse_dataset(
         values = [row[index] for row in rows if row[index] is not None]
         dtype = "text"
         if (
-            kind == "csv"
+            kind in {"csv", "tsv"}
             and values
             and all(isinstance(v, str) and numeric_pattern.fullmatch(v) for v in values)
         ):
@@ -228,7 +285,10 @@ def _parse_worker(path: str, filename: str, sheet_name: str | None, output: str)
     try:
         source = Path(path)
         kind = validate_upload(source, filename)
-        if kind == "xlsx" and sheet_name is None:
+        if kind in {"xls", "ods"} and sheet_name is None:
+            with CalamineWorkbook.from_path(str(source)) as book:
+                payload = {"sheets": [{"name": name} for name in book.sheet_names]}
+        elif kind == "xlsx" and sheet_name is None:
             book = load_workbook(
                 source, read_only=True, data_only=True, keep_links=False
             )

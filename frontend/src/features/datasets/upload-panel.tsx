@@ -39,7 +39,7 @@ export function UploadPanel({
         <input
           ref={input}
           type="file"
-          accept=".csv,.xlsx"
+          accept=".csv,.tsv,.json,.jsonl,.xls,.xlsx,.ods"
           className="sr-only"
           tabIndex={-1}
           aria-label="ไฟล์ข้อมูล"
@@ -57,7 +57,7 @@ export function UploadPanel({
         >
           {busy ? "กำลังวิเคราะห์…" : "เลือกไฟล์"}
         </Button>
-        <p className="caption">CSV / XLSX · สูงสุด 10 MB</p>
+        <p className="caption">CSV / TSV / JSON / JSONL / XLS / XLSX / ODS · สูงสุด 10 MB</p>
       </section>
       <aside className="upload-guide">
         <h2>ก่อนเริ่มวิเคราะห์</h2>

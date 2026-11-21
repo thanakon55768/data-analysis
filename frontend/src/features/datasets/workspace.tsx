@@ -90,8 +90,8 @@ export function Workspace() {
 
   async function onFile(file: File) {
     if (busy) return;
-    if (!/\.(csv|xlsx)$/i.test(file.name)) {
-      setError("รองรับเฉพาะไฟล์ .csv และ .xlsx");
+    if (!/\.(csv|tsv|json|jsonl|xls|xlsx|ods)$/i.test(file.name)) {
+      setError("รองรับไฟล์ CSV, TSV, JSON, JSONL, XLS, XLSX และ ODS");
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -189,7 +189,7 @@ export function Workspace() {
       <main className="workspace">
         <div className="intro">
           <h1>เริ่มต้นจากข้อมูลของคุณ</h1>
-          <p>อัปโหลด Excel หรือ CSV เพื่อสำรวจข้อมูลและคำนวณสถิติจริง</p>
+          <p>อัปโหลด ไฟล์ข้อมูล เพื่อสำรวจข้อมูลและคำนวณสถิติจริง</p>
         </div>
         <UploadPanel busy={busy} onFile={onFile} />
         <div className="live-status" role="status" aria-live="polite">
