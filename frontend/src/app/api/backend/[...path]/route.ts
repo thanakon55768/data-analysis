@@ -14,7 +14,7 @@ async function proxy(
   const { path } = await params;
   const route = path.join("/");
   if (
-    !/^api\/v1\/datasets(?:\/[0-9a-f-]{36}(?:\/(?:preview|statistics|sheet|chat|chart))?)?$/.test(
+    !/^api\/v1\/datasets(?:\/[0-9a-f-]{36}(?:\/(?:preview|statistics|sheet|chat|chart|visualization))?)?$/.test(
       route,
     )
   )
@@ -76,7 +76,7 @@ async function proxy(
       body,
       cache: "no-store",
       redirect: "error",
-      signal: AbortSignal.any([request.signal, AbortSignal.timeout(40_000)]),
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(route.endsWith("/chat") ? 75_000 : 40_000)]),
     });
     return new Response(response.body, {
       status: response.status,

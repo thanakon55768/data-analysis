@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from app.schemas import AnalysisError
 from app.services.chat_analysis import AnalysisPlan, execute_plan
 from app.services.repository_access import get_repository
+from app.services.visualization import VisualizationSpec, build_visualization
 
 router = APIRouter(prefix="/api/v1/datasets")
 
@@ -34,4 +35,21 @@ def chart(
     if result is None:
         raise AnalysisError("invalid_chart", message)
     result["warnings"] = warnings
+    return result
+
+
+@router.post("/{dataset_id}/visualization")
+def visualization(
+    dataset_id: UUID,
+    spec: VisualizationSpec,
+    repo: Annotated[object, Depends(get_repository)],
+):
+    metadata = repo.get(str(dataset_id))
+    if spec.expected_sheet is not None and spec.expected_sheet != (
+        metadata["selected_sheet"] or ""
+    ):
+        raise AnalysisError("dataset_changed", "ชีตถูกเปลี่ยน กรุณาเปิดไฟล์ใหม่", 409)
+    frame, columns, warnings = repo.frame(str(dataset_id), metadata)
+    result = build_visualization(frame, columns, spec)
+    result["warnings"] = warnings + result["warnings"]
     return result

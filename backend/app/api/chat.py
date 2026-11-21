@@ -8,7 +8,12 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas import AnalysisError
-from app.services.chat_analysis import execute_plan, plan_question
+from app.services.chat_analysis import (
+    dataset_profile,
+    execute_plan,
+    explain_result,
+    plan_question,
+)
 from app.services.repository_access import get_repository
 
 router = APIRouter(prefix="/api/v1/datasets")
@@ -19,6 +24,8 @@ class Question(BaseModel):
     model_config = ConfigDict(extra="forbid")
     question: str = Field(min_length=1, max_length=2000)
     share_with_gemini: bool = False
+    share_analysis: bool = False
+    expected_sheet: str | None = Field(default=None, max_length=31)
 
 
 def current_conversation(metadata):
@@ -50,15 +57,45 @@ def ask(
     try:
         with repo.lock:
             metadata = repo.get(str(dataset_id))
+            if body.expected_sheet is not None and body.expected_sheet != (
+                metadata["selected_sheet"] or ""
+            ):
+                raise AnalysisError("dataset_changed", "ชีตถูกเปลี่ยน กรุณาเปิดไฟล์ใหม่", 409)
             frame, columns, warnings = repo.frame(str(dataset_id), metadata)
             turns = current_conversation(metadata)
-            plan = plan_question(body.question.strip(), columns, turns)
+            plan = (
+                plan_question(
+                    body.question.strip(),
+                    columns,
+                    turns,
+                    dataset_profile(frame, columns),
+                )
+                if body.share_analysis
+                else plan_question(body.question.strip(), columns, turns)
+            )
             answer, evidence = execute_plan(plan, frame, columns)
+            if evidence is not None:
+                evidence["source_rows"] = len(frame)
+                evidence["filters"] = [item.model_dump() for item in plan.filters]
+            if plan.filters:
+                answer = "ผลหลังใช้ตัวกรองที่ระบุ\n" + answer
+            computed_answer = answer
+            if body.share_analysis and evidence is not None:
+                try:
+                    answer = explain_result(
+                        body.question.strip(), columns, turns, evidence, computed_answer
+                    )
+                except AnalysisError:
+                    warnings = warnings + [
+                        "แสดงผลคำนวณโดยตรง เนื่องจาก AI อธิบายผลไม่สำเร็จ"
+                    ]
             turn = {
                 "id": str(uuid4()),
                 "question": body.question.strip(),
                 "answer": answer,
                 "plan": plan.model_dump(),
+                "computed_answer": computed_answer,
+                "explanation_by_ai": body.share_analysis and answer != computed_answer,
                 "evidence": evidence,
                 "warnings": warnings,
                 "created_at": datetime.now(UTC).isoformat(),
