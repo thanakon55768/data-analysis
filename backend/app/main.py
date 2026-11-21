@@ -9,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.api.charts import router as charts_router
 from app.api.chat import router as chat_router
 from app.api.datasets import router
 from app.config import DEFAULT_DATA_DIR, LOCAL_ORIGINS, MAX_REQUEST_BYTES
@@ -133,6 +134,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
 
     application.include_router(router)
     application.include_router(chat_router)
+    application.include_router(charts_router)
     return application
 
 

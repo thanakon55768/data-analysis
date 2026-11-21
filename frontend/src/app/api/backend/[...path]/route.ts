@@ -14,7 +14,7 @@ async function proxy(
   const { path } = await params;
   const route = path.join("/");
   if (
-    !/^api\/v1\/datasets(?:\/[0-9a-f-]{36}(?:\/(?:preview|statistics|sheet|chat))?)?$/.test(
+    !/^api\/v1\/datasets(?:\/[0-9a-f-]{36}(?:\/(?:preview|statistics|sheet|chat|chart))?)?$/.test(
       route,
     )
   )

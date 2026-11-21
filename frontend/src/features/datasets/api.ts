@@ -67,3 +67,14 @@ export function askQuestion(id: string, question: string, signal: AbortSignal) {
     body: JSON.stringify({ question, share_with_gemini: true }),
   });
 }
+export type ChartResult = {
+  group_column: import("./types").Column;
+  value_column: import("./types").Column | null;
+  metric: string;
+  groups: { group: string | null; value: number | null }[];
+  row_count: number;
+  warnings: string[];
+};
+export function getChart(id: string, params: { group_id: string; metric: string; value_id?: string; expected_sheet: string }, signal: AbortSignal) {
+  return request<ChartResult>(`/${id}/chart?${new URLSearchParams(params)}`, { signal });
+}

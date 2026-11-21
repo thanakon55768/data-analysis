@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { ChartPanel } from "./chart-panel";
 import { ChatPanel } from "./chat-panel";
 import { UploadPanel } from "./upload-panel";
 import { SheetSelector } from "./sheet-selector";
@@ -282,6 +283,7 @@ export function Workspace() {
             {dataset.status === "ready" && !busy && <div id="chat-view" role="tabpanel" aria-labelledby="chat-tab" hidden={view !== "chat"} className="chat-view"><ChatPanel key={`${dataset.id}:${dataset.selected_sheet}`} datasetId={dataset.id} filename={dataset.filename} /></div>}
             <div id="data-view" role="tabpanel" aria-labelledby="data-tab" hidden={view !== "data" || dataset.status !== "ready"} className="data-view">
               <div className="data-view-heading"><div><h1>สำรวจข้อมูล</h1><p>{dataset.filename}</p></div><Button variant="outline" size="sm" disabled={busy} onClick={reset}><Trash2 size={15} /> ลบข้อมูลและเริ่มใหม่</Button></div>
+              {preview && <ChartPanel key={`${dataset.id}:${dataset.selected_sheet}`} datasetId={dataset.id} columns={preview.columns} selectedSheet={dataset.selected_sheet} />}
               <StatisticsPanel statistics={statistics} columns={preview?.columns ?? []} />
               {loading && <div className="loading-line" role="status"><LoaderCircle className="spinning" /> กำลังโหลดข้อมูล</div>}
               <DataTable preview={preview} busy={busy || loading} search={search} onSearch={(value) => { setPageOffsets([0]); setOffset(0); setSearch(value); }} previousOffset={pageOffsets.length > 1 ? pageOffsets[pageOffsets.length - 2] : 0} onPage={(value) => { if (value < offset) setPageOffsets((values) => values.slice(0, -1)); else if (value > offset) setPageOffsets((values) => [...values, value]); setOffset(value); }} />
