@@ -19,5 +19,6 @@ class DatasetResponse(BaseModel):
     sheets: list[dict[str, str]]
     selected_sheet: str | None
     status: Literal["needs_sheet", "ready"]
-    expires_at: str
+    expires_at: str | None
+    created_at: str | None = None
     warnings: list[str]

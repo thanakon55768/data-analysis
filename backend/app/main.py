@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -8,6 +9,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.api.chat import router as chat_router
 from app.api.datasets import router
 from app.config import DEFAULT_DATA_DIR, LOCAL_ORIGINS, MAX_REQUEST_BYTES
 from app.schemas import AnalysisError
@@ -32,6 +34,11 @@ class LocalRequestGuard:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
+        expected_mode = headers.get(b"x-storage-mode", b"").decode()
+        if expected_mode and expected_mode != scope["app"].state.storage_mode:
+            return await error_response(503, "mode_mismatch", "โหมดจัดเก็บข้อมูลไม่ตรงกัน")(
+                scope, receive, send
+            )
         origin = headers.get(b"origin", b"").decode()
         if origin and origin not in LOCAL_ORIGINS:
             return await error_response(
@@ -84,6 +91,15 @@ class LocalRequestGuard:
 def create_app(data_dir: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application):
+        mode = os.environ.get("STORAGE_MODE", "local")
+        if mode not in {"local", "supabase"}:
+            raise RuntimeError("STORAGE_MODE must be local or supabase")
+        if mode == "supabase" and (
+            not os.environ.get("SUPABASE_URL", "").startswith("https://")
+            or not os.environ.get("SUPABASE_PUBLISHABLE_KEY")
+        ):
+            raise RuntimeError("Supabase configuration is required")
+        application.state.storage_mode = mode
         application.state.repository = DatasetRepository(data_dir or DEFAULT_DATA_DIR)
         application.state.parse_gate = threading.Lock()
         yield
@@ -116,6 +132,7 @@ def create_app(data_dir: Path | None = None) -> FastAPI:
         return {"status": "ok"}
 
     application.include_router(router)
+    application.include_router(chat_router)
     return application
 
 

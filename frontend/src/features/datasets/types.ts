@@ -10,7 +10,8 @@ export type Dataset = {
   sheets: { name: string }[];
   selected_sheet: string | null;
   status: "needs_sheet" | "ready";
-  expires_at: string;
+  expires_at: string | null;
+  created_at?: string | null;
   warnings: string[];
 };
 export type Preview = {

@@ -1,7 +1,10 @@
+import { authHeaders } from "@/features/auth/client";
 import type { Dataset, Preview, Statistics } from "./types";
 const base = "/api/backend/api/v1/datasets";
 async function request<T>(path: string, init: RequestInit): Promise<T> {
-  const response = await fetch(base + path, { ...init, cache: "no-store" });
+  const headers = new Headers(init.headers);
+  for (const [key, value] of Object.entries(await authHeaders())) headers.set(key, value);
+  const response = await fetch(base + path, { ...init, headers, cache: "no-store" });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
     throw new Error(
@@ -38,4 +41,29 @@ export function getStatistics(id: string, signal: AbortSignal) {
 }
 export function deleteDataset(id: string, signal: AbortSignal) {
   return request<void>(`/${id}`, { method: "DELETE", signal });
+}
+
+export function listDatasets(offset: number, signal: AbortSignal) {
+  return request<(Dataset & { deleting?: boolean })[]>(`?offset=${offset}&limit=20`, { signal });
+}
+export function getDataset(id: string, signal: AbortSignal) {
+  return request<Dataset>(`/${id}`, { signal });
+}
+export type ChatTurn = {
+  id: string;
+  question: string;
+  answer: string;
+  evidence: Record<string, unknown> | null;
+  warnings: string[];
+  created_at: string;
+};
+export function getChat(id: string, signal: AbortSignal) {
+  return request<ChatTurn[]>(`/${id}/chat`, { signal });
+}
+export function askQuestion(id: string, question: string, signal: AbortSignal) {
+  return request<ChatTurn>(`/${id}/chat`, {
+    method: "POST", signal,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, share_with_gemini: true }),
+  });
 }

@@ -1,14 +1,14 @@
 import json
-from pathlib import Path
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, File, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile
 
 from app.config import MAX_FILE_BYTES
 from app.schemas import AnalysisError, DatasetResponse, SheetSelection
 from app.services.file_validation import upload_kind
 from app.services.parsing import run_parse
+from app.services.repository_access import get_repository
 from app.services.statistics import build_preview, compute_statistics
 
 router = APIRouter(prefix="/api/v1/datasets")
@@ -22,8 +22,11 @@ def acquire_gate(request: Request):
 
 
 @router.post("", status_code=201, response_model=DatasetResponse)
-def upload_dataset(request: Request, file: Annotated[UploadFile, File()]):
-    repo = request.app.state.repository
+def upload_dataset(
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    repo: Annotated[object, Depends(get_repository)],
+):
     acquire_gate(request)
     dataset_id = None
     try:
@@ -51,8 +54,12 @@ def upload_dataset(request: Request, file: Annotated[UploadFile, File()]):
 
 
 @router.post("/{dataset_id}/sheet", response_model=DatasetResponse)
-def select_sheet(dataset_id: UUID, selection: SheetSelection, request: Request):
-    repo = request.app.state.repository
+def select_sheet(
+    dataset_id: UUID,
+    selection: SheetSelection,
+    request: Request,
+    repo: Annotated[object, Depends(get_repository)],
+):
     acquire_gate(request)
     try:
         with repo.lock:
@@ -62,9 +69,7 @@ def select_sheet(dataset_id: UUID, selection: SheetSelection, request: Request):
             ]:
                 raise AnalysisError("unknown_sheet", "ไม่พบชีตที่เลือก")
             payload = run_parse(
-                repo.root
-                / str(dataset_id)
-                / ("original" + Path(metadata["filename"]).suffix.lower()),
+                repo.original(str(dataset_id), metadata["filename"]),
                 metadata["filename"],
                 selection.sheet_name,
             )
@@ -83,11 +88,12 @@ def select_sheet(dataset_id: UUID, selection: SheetSelection, request: Request):
 def preview(
     dataset_id: UUID,
     request: Request,
+    repo: Annotated[object, Depends(get_repository)],
     offset: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     search: str = Query("", max_length=200),
 ):
-    frame, columns, _ = request.app.state.repository.frame(str(dataset_id))
+    frame, columns, _ = repo.frame(str(dataset_id))
     result = build_preview(frame, columns, offset, limit, search)
     if len(json.dumps(result, ensure_ascii=False).encode("utf-8")) > 2 * 1024 * 1024:
         raise AnalysisError(
@@ -97,17 +103,35 @@ def preview(
 
 
 @router.get("/{dataset_id}/statistics")
-def statistics(dataset_id: UUID, request: Request):
-    frame, columns, warnings = request.app.state.repository.frame(str(dataset_id))
+def statistics(
+    dataset_id: UUID, request: Request, repo: Annotated[object, Depends(get_repository)]
+):
+    frame, columns, warnings = repo.frame(str(dataset_id))
     result = compute_statistics(frame, columns)
     result["warnings"] = warnings + result["warnings"]
     return result
 
 
 @router.delete("/{dataset_id}", status_code=204)
-def delete_dataset(dataset_id: UUID, request: Request):
-    repo = request.app.state.repository
+def delete_dataset(
+    dataset_id: UUID, request: Request, repo: Annotated[object, Depends(get_repository)]
+):
     with repo.lock:
-        repo.get(str(dataset_id))
+        if not hasattr(repo, "gateway"):
+            repo.get(str(dataset_id))
         repo.delete(str(dataset_id))
     return Response(status_code=204)
+
+
+@router.get("")
+def history(
+    repo: Annotated[object, Depends(get_repository)],
+    offset: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+):
+    return repo.list(offset, limit)
+
+
+@router.get("/{dataset_id}", response_model=DatasetResponse)
+def detail(dataset_id: UUID, repo: Annotated[object, Depends(get_repository)]):
+    return repo.get(str(dataset_id))

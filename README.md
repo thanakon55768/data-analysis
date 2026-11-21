@@ -101,3 +101,9 @@ npm.cmd run test:e2e
 
 - [Next.js installation](https://nextjs.org/docs/app/getting-started/installation)
 - [FastAPI file uploads](https://fastapi.tiangolo.com/tutorial/request-files/)
+
+## Phase 2
+ระบบบัญชีและจัดเก็บไฟล์ส่วนตัวมีโค้ดเตรียมไว้แล้ว ดูขั้นตอนสร้าง Supabase ตั้ง environment รัน migration และตรวจรับสองบัญชีใน docs/phase-2-setup.md โหมดเริ่มต้นยังเป็น local
+
+## Phase 3
+แชตสำหรับถามภาพรวม สถิติรายคอลัมน์ และการคำนวณแยกกลุ่ม เตรียมพร้อมตั้งค่า Gemini ฝั่ง Backend ดู docs/phase-3-setup.md การทดสอบ Gemini จริงยังรอ API key

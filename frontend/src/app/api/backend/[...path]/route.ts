@@ -14,7 +14,7 @@ async function proxy(
   const { path } = await params;
   const route = path.join("/");
   if (
-    !/^api\/v1\/datasets(?:\/[0-9a-f-]{36}(?:\/(?:preview|statistics|sheet))?)?$/.test(
+    !/^api\/v1\/datasets(?:\/[0-9a-f-]{36}(?:\/(?:preview|statistics|sheet|chat))?)?$/.test(
       route,
     )
   )
@@ -62,6 +62,12 @@ async function proxy(
     upstream.pathname = "/" + route;
     upstream.search = request.nextUrl.search;
     const headers = new Headers();
+    const mode = process.env.NEXT_PUBLIC_STORAGE_MODE || "local";
+    if (!["local", "supabase"].includes(mode))
+      return error(503, "invalid_configuration", "โหมดจัดเก็บข้อมูลไม่ถูกต้อง");
+    headers.set("x-storage-mode", mode);
+    const authorization = request.headers.get("authorization");
+    if (authorization) headers.set("authorization", authorization);
     const contentType = request.headers.get("content-type");
     if (contentType) headers.set("content-type", contentType);
     const response = await fetch(upstream, {

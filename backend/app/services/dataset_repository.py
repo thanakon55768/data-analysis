@@ -99,9 +99,9 @@ class DatasetRepository:
                 )
             return json.loads(path.read_text(encoding="utf-8"))
 
-    def frame(self, dataset_id: str) -> tuple[pd.DataFrame, list, list]:
+    def frame(self, dataset_id: str, metadata: dict | None = None) -> tuple[pd.DataFrame, list, list]:
         with self.lock:
-            metadata = self.get(dataset_id)
+            metadata = metadata if metadata is not None else self.get(dataset_id)
             if metadata["status"] != "ready":
                 raise AnalysisError("sheet_required", "กรุณาเลือกชีตก่อนวิเคราะห์ข้อมูล", 409)
             payload = json.loads(
@@ -120,3 +120,15 @@ class DatasetRepository:
             directory = self._path(dataset_id)
             if directory.exists():
                 shutil.rmtree(directory)
+
+    def original(self, dataset_id, filename):
+        return self._path(dataset_id) / ("original" + Path(filename).suffix.lower())
+
+    def list(self, offset=0, limit=20):
+        self.cleanup_expired()
+        records = []
+        for path in self.root.glob("*/metadata.json"):
+            records.append(json.loads(path.read_text(encoding="utf8")))
+        return sorted(records, key=lambda item: item["expires_at"], reverse=True)[
+            offset : offset + limit
+        ]
